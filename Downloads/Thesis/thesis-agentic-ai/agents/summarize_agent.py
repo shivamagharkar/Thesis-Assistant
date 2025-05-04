@@ -1,31 +1,43 @@
+from langchain.chat_models import ChatOpenAI
+from langchain.agents import initialize_agent, Tool
+from langchain.agents.agent_types import AgentType
+from langchain.chains import RetrievalQA
+from langchain.vectorstores import FAISS
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.document_loaders import PyPDFLoader
 import openai
 import os
-from pathlib import Path
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-def summarize_text(text: str, custom_prompt: str = "Summarize this for thesis writing expectations:"):
-    response = openai.ChatCompletion.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": f"{custom_prompt}\n\n{text}"}]
+def load_pdf_qa_tool(pdf_path: str) -> Tool:
+    loader = PyPDFLoader(pdf_path)
+    docs = loader.load()
+    vectorstore = FAISS.from_documents(docs, OpenAIEmbeddings())
+    retriever = vectorstore.as_retriever()
+
+    return Tool(
+        name="PDF Research Retriever",
+        func=RetrievalQA.from_chain_type(
+            llm=ChatOpenAI(model_name="gpt-4o"),
+            retriever=retriever
+        ).run,
+        description="Retrieves answers from uploaded research PDFs."
     )
-    return response.choices[0].message["content"]
-
-def summarize_all_transcripts(input_dir: str, output_dir: str):
-    input_path = Path(input_dir)
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    for transcript_file in input_path.glob("*.txt"):
-        print(f"Summarizing: {transcript_file.name}")
-        with open(transcript_file) as f:
-            text = f.read()
-
-        summary = summarize_text(text)
-        summary_file = output_path / transcript_file.name
-        with open(summary_file, "w") as f:
-            f.write(summary)
-        print(f"Saved summary: {summary_file}")
 
 if __name__ == "__main__":
-    summarize_all_transcripts("data/transcripts", "data/summaries")
+    pdf_path = "your_thesis_docs.pdf"  # Replace with your file
+    pdf_tool = load_pdf_qa_tool(pdf_path)
+
+    agent = initialize_agent(
+        tools=[pdf_tool],
+        llm=ChatOpenAI(model_name="gpt-4o"),
+        agent=AgentType.OPENAI_FUNCTIONS,
+        verbose=True
+    )
+
+    query = "Summarize how fairness is handled differently in GenAI recommender systems."
+    response = agent.run(query)
+
+    print("\n--- Thesis Summary Output ---\n")
+    print(response)
