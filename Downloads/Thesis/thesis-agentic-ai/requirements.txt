@@ -1,0 +1,12 @@
+streamlit
+openai
+whisper
+torch
+langchain
+chromadb
+tiktoken
+PyPDF2
+pypdf
+faiss-cpu
+numpy
+pandas
