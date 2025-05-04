@@ -6,7 +6,7 @@ import whisper
 import openai
 
 from langchain.document_loaders import PyPDFLoader
-from langchain.vectorstores.chroma import Chroma
+from langchain.vectorstores import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
@@ -28,10 +28,6 @@ mp4_files = st.file_uploader("Upload MP4 videos", type="mp4", accept_multiple_fi
 st.markdown("### Upload Research Papers (.pdf)")
 pdf_files = st.file_uploader("Upload PDF files", type="pdf", accept_multiple_files=True)
 
-# Storage path for vector database
-db_dir = "data/db_streamlit"
-Path(db_dir).mkdir(parents=True, exist_ok=True)
-
 # Step 3: Transcribe Videos using Whisper
 transcripts = []
 if mp4_files:
@@ -45,8 +41,9 @@ if mp4_files:
         transcripts.append(result["text"])
         st.success(f"Transcribed: {mp4.name}")
 
-# Step 4: Embed PDFs into Chroma Vector Store
+# Step 4: Embed PDFs into FAISS Vector Store
 docs = []
+vectordb = None
 if pdf_files:
     st.markdown("### Embedding Research Papers")
     for pdf in pdf_files:
@@ -56,24 +53,16 @@ if pdf_files:
         loader = PyPDFLoader(tmp_path)
         docs.extend(loader.load_and_split())
 
-    vectordb = Chroma.from_documents(
-        documents=docs,
-        embedding=OpenAIEmbeddings(),
-        persist_directory=db_dir
-    )
-    vectordb.persist()
-    st.success(f"Embedded {len(pdf_files)} PDF(s)")
+    if docs:
+        vectordb = FAISS.from_documents(docs, OpenAIEmbeddings())
+        st.success(f"Embedded {len(pdf_files)} PDF(s)")
 
 # Step 5: Retrieval-Augmented Generation (RAG) Prompt
-if api_key and pdf_files:
+if api_key and pdf_files and vectordb:
     st.markdown("### Ask a Thesis-related Question")
     question = st.text_input("Your question")
 
     if question:
-        vectordb = Chroma(
-            persist_directory=db_dir,
-            embedding_function=OpenAIEmbeddings()
-        )
         qa_chain = RetrievalQA.from_chain_type(
             llm=ChatOpenAI(model="gpt-4o"),
             retriever=vectordb.as_retriever()
