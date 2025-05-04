@@ -11,3 +11,4 @@ faiss-cpu
 numpy
 pandas
 langchain-community
+protobuf==3.20.1
