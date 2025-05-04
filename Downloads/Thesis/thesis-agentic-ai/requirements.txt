@@ -3,7 +3,7 @@ openai
 whisper
 torch
 langchain
-chromadb
+chromadb==0.4.15
 tiktoken
 PyPDF2
 pypdf
